@@ -1,0 +1,148 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#pragma kernel Clear
+#pragma kernel Circles
+#pragma kernel RandomColors
+#pragma kernel Circumference
+
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+shared RWTexture2D<float4> Result; // adding shared means that multiple pragmas can write to it
+int TextureResolution; 
+int Radius; 
+int LineThickness; 
+float TimeEllapsed; 
+float4 ClearColor; 
+float4 CircleColor; 
+
+// Returns a pseudo random number in range 0 - 1
+float random(float value, float seed = 0.546)
+{
+    float random = (frac(sin(value + seed) * 143758.543)); 
+    return random; 
+}
+
+float2 random2(float value)
+{
+    return float2(
+        random(value, 3.9812),
+        random(value, 7.1536)
+        ); 
+}
+
+// plots a circle
+void plot1 (int x, int y, int2 centre){
+    Result[uint2(centre.x + x , centre.y + y)] = CircleColor; 
+}
+
+void plot8(int x, int y, int2 centre){
+    plot1(x, y, centre);    plot1(y,x,centre); 
+    plot1(x, -y, centre);   plot1(y, -x, centre); 
+    plot1(-x,-y, centre);   plot1(-y, -x, centre); 
+    plot1(-x, y, centre);   plot1(-y,x, centre); 
+}
+
+void drawCircle( int2 centre, int radius)
+{
+    int x = 0; 
+    int y = radius; 
+    int d = 1 - radius; 
+
+    while (x < y ){
+        if (d < 0){
+            d += 2 * x + 5; 
+        }else{
+            d += 2 * (x - y) + 3; // the 2 increases to produce a rounded square // the 3 increases to produce a diamond
+            y --; 
+        }
+
+        //float2 pt = new float2(x,y); 
+
+        plot8(x,y, centre); 
+
+        x++; 
+    }
+}
+
+// Alternative pseudo random number
+float rand(float2 n, float t)
+{
+    float u = sin(t); 
+    float v = cos(frac(sin(dot(n.xy, float2(12.9898, 78.233))) * 43758.5453));
+
+    return frac (u + v);
+}
+
+
+float inCircle(float2 pt, float radius)
+{
+    return (length(pt) < radius) ? 1.0 : 0.0; 
+}
+
+
+float onCircumference(float2 pt, float radius, float lineThickness)
+{
+    return (length(pt) > radius - lineThickness && length(pt) < radius + lineThickness) ? 1.0 : 0.0; 
+}
+
+
+    
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+
+    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+}
+
+[numthreads(8,8,1)]
+void Clear (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+
+    Result[id.xy] = ClearColor;
+}
+
+
+[numthreads(8,8,1)]
+void Circles (uint3 id : SV_DispatchThreadID)
+{
+    
+    int halfRes = TextureResolution >>1; // bit shift down one to get the middle of the screen
+
+    float res = inCircle ((float2)((int2)id.xy - halfRes), Radius); 
+    Result[id.xy] = float4(res, res, 0.0, 1.0); 
+    
+
+    int2 centre = (int2)(random2((float)id.x) * (float)TextureResolution); 
+}
+
+[numthreads(8,8,1)]
+void RandomColors (uint3 id : SV_DispatchThreadID)
+{
+    float r = rand(id.xy, TimeEllapsed); 
+    float g = rand(id.xy + id.xy, TimeEllapsed);
+    float b = rand(id.xy + id.xy, TimeEllapsed);
+    
+    Result[id.xy] = float4(r, g, b, 1.0); 
+}
+
+[numthreads(4,1,1)]
+void Circumference (uint3 id : SV_DispatchThreadID)
+{
+    
+    /*
+    int halfRes = TextureResolution >>1; // bit shift down one to get the middle of the screen
+
+    float res = onCircumference ((float2)((int2)id.xy - halfRes), Radius, (float)LineThickness/2); 
+    Result[id.xy] = float4(res, res, 0.0, 1.0); 
+    */
+
+    
+    int2 centre = (int2)(random2((float)id.x) * (float)TextureResolution); //TextureResolution >>1; 
+    int radius = (int)(random((float)id.x) * 30); 
+    drawCircle(centre, radius + Radius); 
+    
+}
