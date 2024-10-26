@@ -8,7 +8,16 @@
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
+
+struct circle{
+    float2 origin;
+    float2 velocity;
+    float radius;
+}; 
+
+StructuredBuffer<circle> circlesBuffer;
 shared RWTexture2D<float4> Result; // adding shared means that multiple pragmas can write to it
+
 int TextureResolution; 
 int Radius; 
 int LineThickness; 
@@ -33,7 +42,7 @@ float2 random2(float value)
 
 // plots a circle
 void plot1 (int x, int y, int2 centre){
-    Result[uint2(centre.x + x , centre.y + y)] = CircleColor; 
+    Result[uint2(centre.x + x , centre.y + y)] = float4(CircleColor.x, CircleColor.y, CircleColor.z, 0.1); 
 }
 
 void plot8(int x, int y, int2 centre){
@@ -100,23 +109,35 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void Clear (uint3 id : SV_DispatchThreadID)
 {
-    // TODO: insert actual code here!
+    
+    float4 newColor = float4(ClearColor.x, ClearColor.y, ClearColor.z, 0.5 ); 
 
-    Result[id.xy] = ClearColor;
+    Result[id.xy] = newColor;
 }
 
 
-[numthreads(8,8,1)]
+[numthreads(32,1,1)]
 void Circles (uint3 id : SV_DispatchThreadID)
 {
-    
-    int halfRes = TextureResolution >>1; // bit shift down one to get the middle of the screen
+   
+    int2 centre = (int2)(circlesBuffer[id.x].origin + circlesBuffer[id.x].velocity * TimeEllapsed); 
+    int radius = (int)circlesBuffer[id.x].radius; 
 
-    float res = inCircle ((float2)((int2)id.xy - halfRes), Radius); 
-    Result[id.xy] = float4(res, res, 0.0, 1.0); 
-    
+    while(centre.x > TextureResolution) centre.x -= TextureResolution; 
+    while(centre.x<0) centre.x +=TextureResolution; 
+    while(centre.y > TextureResolution) centre.y -= TextureResolution; 
+    while(centre.y<0) centre.y +=TextureResolution; 
 
-    int2 centre = (int2)(random2((float)id.x) * (float)TextureResolution); 
+    drawCircle(centre, radius + Radius); 
+    
+    
+    // instantiate non moving circles
+     /*
+    int2 centre = (int2)(random2((float)id.x) * (float)TextureResolution); //TextureResolution >>1; 
+    int radius = (int)(random((float)id.x) * 30); 
+    drawCircle(centre, radius + Radius); 
+    */
+    
 }
 
 [numthreads(8,8,1)]
@@ -141,8 +162,6 @@ void Circumference (uint3 id : SV_DispatchThreadID)
     */
 
     
-    int2 centre = (int2)(random2((float)id.x) * (float)TextureResolution); //TextureResolution >>1; 
-    int radius = (int)(random((float)id.x) * 30); 
-    drawCircle(centre, radius + Radius); 
+    
     
 }

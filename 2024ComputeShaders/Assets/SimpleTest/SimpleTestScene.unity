@@ -140,7 +140,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &150264819
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -654,6 +654,56 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1898242100}
   m_CullTransparentMesh: 1
+--- !u!1 &1972110482
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1972110484}
+  - component: {fileID: 1972110483}
+  m_Layer: 0
+  m_Name: SystemManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1972110483
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1972110482}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ee7e297f5708469a821b3121fb07adb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  prefab: {fileID: 5627548216405997835, guid: 8fc2d8699d81249289122aa80066bcb3, type: 3}
+  count: 10
+  computeShader: {fileID: 7200000, guid: d1a80481c7f27495781543e5238c5cac, type: 3}
+  kernelName: CSMain
+  clearName: Clear
+  clearColor: {r: 0, g: 0, b: 0, a: 0}
+--- !u!4 &1972110484
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1972110482}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.3314898, y: 0.08952095, z: 0.14046647}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2044876622
 GameObject:
   m_ObjectHideFlags: 0
@@ -741,7 +791,7 @@ Transform:
   m_GameObject: {fileID: 2044876622}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalPosition: {x: 0, y: 0, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -754,17 +804,18 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2044876622}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: be617a691b2b64d5f89cc22edf836136, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  computeShader: {fileID: 7200000, guid: 7e33e7325d1ad483cbb7f6c267650418, type: 3}
+  kernelName: 
+  computeShader: {fileID: 7200000, guid: d1a80481c7f27495781543e5238c5cac, type: 3}
   renderTexture: {fileID: 8400000, guid: 15eed29c531304b1c9b27ff8bf159769, type: 2}
-  radius: 10
+  radius: 0
   lineThickness: 2
-  clearColor: {r: 1, g: 0.06132078, b: 0.06132078, a: 0}
-  circleColor: {r: 0, g: 0, b: 0, a: 0}
+  clearColor: {r: 1, g: 0.06132078, b: 0.06132078, a: 0.49803922}
+  circleColor: {r: 1, g: 1, b: 1, a: 0.54509807}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -773,3 +824,4 @@ SceneRoots:
   - {fileID: 1812923701}
   - {fileID: 1300002277}
   - {fileID: 150264821}
+  - {fileID: 1972110484}

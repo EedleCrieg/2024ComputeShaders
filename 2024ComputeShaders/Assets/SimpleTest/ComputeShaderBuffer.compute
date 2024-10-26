@@ -1,0 +1,31 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#pragma kernel Clear
+
+float time; 
+RWStructuredBuffer<float3> Result; 
+
+float random(float value, float seed = 0.546){
+    float res = frac(sin(value + seed) * 143758.5453); 
+    return res; 
+}
+
+float3 random3(float value){
+    return float3(
+        random(value, 3.9812),
+        random(value, 7.1536),
+        random(value, 5.7241)
+    ); 
+}
+
+[numthreads (64,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+
+}
+
+[numthreads (8,8,1)]
+void Clear (uint3 id : SV_DispatchThreadID)
+{
+    
+}
