@@ -1,0 +1,397 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+struct PixelData{
+    uint neighbors[8]; 
+    float r;
+    float g; 
+    float b;  
+    float timer; 
+    float interpolationFactor; 
+    int interpolating; 
+    int ping; 
+    float3 finalColor; 
+    float3 startColor; 
+};
+
+RWStructuredBuffer<PixelData> PixelBuffer;
+RWTexture2D<float4> Result;  
+float Time; 
+float TimeRangeMin;
+float TimeRangeMax;  
+bool Average; 
+bool Interpolate; 
+bool PingPong; 
+int resolutionX; 
+int resolutionY; 
+
+// return a random value between 0 and 1
+float random(float value, float seed = 0.546)
+{
+    return frac(sin(value + seed) * 4782.439);  
+}
+
+// return a float 3 with random values for eah
+float random3(float value){
+    return float3(
+        random(value, 3.2343), 
+        random(value * 3, 9.4233),
+        random(value * 9, 6.2934)
+    ); 
+}
+
+// Lerp function definition
+float Lerp(float a, float b, float t)
+{
+    return a + (b - a) * t; 
+}
+
+
+[numthreads(8, 8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID, uint3 dispatchSize : SV_DispatchThreadID)
+{
+    
+    //uint index = id.x * dispatchSize.x + id.y * dispatchSize.y; 
+    //uint index = id.x + id.y; 
+    //uint index = id.xy * dispatchSize.x; 
+    //uint index = id.x * dispatchSize.x; 
+
+    //uint index = id.x + id.y; // diagonal 
+    //uint index = id.x * dispatchSize.x ; // vertical  
+    //uint index = id.x * dispatchSize.y; // noise with a diagonal 
+    //uint index = id.x * dispatchSize.x + dispatchSize.y; // vertical ish with large bar on right
+    //uint index = id.x * dispatchSize.y + dispatchSize.y; // noise with diagonal
+    //uint index = id.x + id.y * dispatchSize.x; // noise with diagonal
+    //uint index = id.x + id.y * dispatchSize.y; // horizontal with wave
+    //uint index = id.x * dispatchSize.x + id.y * dispatchSize.y; // diagonal with circle
+    //uint index = id.x * dispatchSize.y + id.y * dispatchSize.y; // diagonal with ellipse
+    //uint index = id.x * dispatchSize.x + id.y * dispatchSize.x; // diagonal with vertical ellipse
+
+    uint index = id.x + id.y * resolutionX ; // Normal
+    //uint index = id.x + id.y * resolutionY ; // Horizontal
+    // uint index = id.x ; // Vertical
+    //uint index = id.y;  // horizontal
+    //uint index = id.y * resolutionX; // horizontal
+    //uint index = id.y * resolutionY; // horizontal
+    //uint index = id.x * resolutionX ; // vertical with color block
+    //uint index = id.x * resolutionY ; // vertical
+    //uint index = id.x * resolutionX + id.y * resolutionX ; // diagonal with color block
+    //uint index = id.x * resolutionY + id.y * resolutionX ; // diagonal with color block
+    //uint index = id.x * resolutionX + id.y; // normal with color block
+    PixelData pixel = PixelBuffer[index]; 
+
+    float r = pixel.r; 
+    float g = pixel.g; 
+    float b = pixel.b; 
+
+
+    if(Interpolate)
+        {
+            if(PingPong)
+            {
+                if(pixel.ping == 0)
+                {
+                    // select color from random neighbor
+                    if (pixel.interpolating == 0)
+                    {
+                        // select a random neighbor
+                        uint randomIndex = (uint)(random((id.xy), frac(Time)) * 8);
+                        uint randomNeighborIndex = pixel.neighbors[randomIndex]; 
+                        PixelData neighbor = PixelBuffer[randomNeighborIndex]; 
+
+                        // define timer as comparison between selected neighbor
+                        pixel.timer = (pixel.timer > neighbor.timer)? pixel.timer : neighbor.timer;  
+
+                        // create colors from neighbor
+                        r = neighbor.r; 
+                        g = neighbor.g; 
+                        b = neighbor.b; 
+
+                        float3 f = float3(r,g,b); 
+
+                        // startColor from self
+                        float pr = pixel.r; 
+                        float pg = pixel.g; 
+                        float pb = pixel.b; 
+
+                        float3 s = float3(pr, pg, pb); 
+                        
+                        // assign colors to final and start color
+                        pixel.finalColor = f; 
+                        pixel.startColor = s; 
+
+                        // turn on interpolation
+                        pixel.interpolating = 1; 
+                    }
+
+                    // Interpolate between start and end colors
+                    if(pixel.interpolating == 1)
+                    {
+                        
+                        // Lerp color 
+                        r = Lerp(pixel.startColor.r, pixel.finalColor.r, pixel.interpolationFactor); 
+                        g = Lerp(pixel.startColor.g, pixel.finalColor.g, pixel.interpolationFactor); 
+                        b = Lerp(pixel.startColor.b, pixel.finalColor.b, pixel.interpolationFactor); 
+
+                        // Set pixel current values
+                        pixel.r = r; 
+                        pixel.g = g; 
+                        pixel.b = b; 
+
+                        // increment the interpolation factor by inc value
+                        pixel.interpolationFactor += pixel.timer; 
+
+                        // Reset 
+                        if(pixel.interpolationFactor >= 1)
+                        {
+                            // turn off interpolation
+                            pixel.interpolating = 0;
+                            
+                            // set ping to pong
+                            pixel.ping = 1; 
+
+                            // return interpolation factor to 0
+                            pixel.interpolationFactor = 0; 
+
+                            // set pixel stored rgb values to final color rgb values
+                            pixel.r = pixel.finalColor.r; 
+                            pixel.g = pixel.finalColor.g; 
+                            pixel.b = pixel.finalColor.b; 
+                        }
+                    }
+                }
+                if(pixel.ping == 1)
+                {
+                    // select color from clear color
+                    if (pixel.interpolating == 0)
+                    {
+                       // select a random neighbor
+                       uint randomIndex = (uint)(random((id.xy), frac(Time)) * 8);
+                       uint randomNeighborIndex = pixel.neighbors[randomIndex]; //uint randomNeighborIndex = pixel.neighbors[randomIndex % 8];
+                       PixelData neighbor = PixelBuffer[randomNeighborIndex];  
+
+                        // define timer
+                        pixel.timer = (pixel.timer > neighbor.timer)? pixel.timer : neighbor.timer;    
+
+                       // create colors from neighbor
+                       r = neighbor.r; 
+                       g = neighbor.g; 
+                       b = neighbor.b; 
+
+                        float3 f = float3(r,g,b); 
+
+                        // startColor from self
+                        float pr = pixel.r; 
+                        float pg = pixel.g; 
+                        float pb = pixel.b; 
+
+                        float3 s = float3(pr, pg, pb); 
+                        
+                        // assign colors to final and start color
+                        pixel.finalColor = f; 
+                        pixel.startColor = s; 
+
+                        // turn on interpolation
+                        pixel.interpolating = 1; 
+                    }
+
+                    // Interpolate between start and end colors
+                    if(pixel.interpolating == 1)
+                    {
+                        
+                        // Lerp color 
+                        r = Lerp(pixel.startColor.r, pixel.finalColor.r, pixel.interpolationFactor); 
+                        g = Lerp(pixel.startColor.g, pixel.finalColor.g, pixel.interpolationFactor); 
+                        b = Lerp(pixel.startColor.b, pixel.finalColor.b, pixel.interpolationFactor); 
+
+                        // increment the interpolation factor by inc value
+                        pixel.interpolationFactor += pixel.timer; 
+
+                        // Set pixel current values
+                        pixel.r = r; 
+                        pixel.g = g; 
+                        pixel.b = b; 
+
+                        // Reset 
+                        if(pixel.interpolationFactor >= 1)
+                        {
+                            // turn off interpolation
+                            pixel.interpolating = 0;
+                            
+                            // set pong to ping
+                            pixel.ping = 0; 
+
+                            // return interpolation factor to 0
+                            pixel.interpolationFactor = 0; 
+
+                            // set pixel stored rgb values to final color rgb values
+                            pixel.r = pixel.finalColor.r; 
+                            pixel.g = pixel.finalColor.g; 
+                            pixel.b = pixel.finalColor.b; 
+
+                            pixel.timer = random(id.x * id.y + Time) * (TimeRangeMax - TimeRangeMin) + TimeRangeMin;
+                        }
+                    }
+                }
+            }
+            // INTERPOLATING BUT NOT PING PONG
+            else
+            {
+                // Initialize variables for interpolation
+                if (pixel.interpolating == 0)
+                {
+                    // select a random neighbor
+                    uint randomIndex = (uint)(random((id.xy), frac(Time)) * 8);
+                    uint randomNeighborIndex = pixel.neighbors[randomIndex]; //uint randomNeighborIndex = pixel.neighbors[randomIndex % 8];
+                    PixelData neighbor = PixelBuffer[randomNeighborIndex]; 
+
+                    // create colors from neighbor
+                    r = neighbor.r; 
+                    g = neighbor.g; 
+                    b = neighbor.b; 
+
+                    float3 f = float3(r,g,b); 
+
+                    // startColor from self
+                    float pr = pixel.r; 
+                    float pg = pixel.g; 
+                    float pb = pixel.b; 
+
+                    float3 s = float3(pr, pg, pb); 
+                    
+                    // assign colors to final and start color
+                    pixel.finalColor = f; 
+                    pixel.startColor = s; 
+
+                    // turn on interpolation
+                    pixel.interpolating = 1; 
+                }
+
+                // Interpolate between start and end colors
+                if(pixel.interpolating == 1)
+                {
+                    
+                    // Lerp color 
+                    r = Lerp(pixel.startColor.r, pixel.finalColor.r, pixel.interpolationFactor); 
+                    g = Lerp(pixel.startColor.g, pixel.finalColor.g, pixel.interpolationFactor); 
+                    b = Lerp(pixel.startColor.b, pixel.finalColor.b, pixel.interpolationFactor); 
+
+                    // increment the interpolation factor by inc value
+                    pixel.interpolationFactor += pixel.timer; 
+
+                    // Set pixel current values
+                    pixel.r = r; 
+                    pixel.g = g; 
+                    pixel.b = b; 
+
+                    // Reset 
+                    if(pixel.interpolationFactor >= 1)
+                    {
+                        // turn off interpolation
+                        pixel.interpolating = 0; 
+
+                        // return interpolation factor to 0
+                        pixel.interpolationFactor = 0; 
+
+                        // set pixel stored rgb values to final color rgb values
+                        pixel.r = pixel.finalColor.r; 
+                        pixel.g = pixel.finalColor.g; 
+                        pixel.b = pixel.finalColor.b; 
+                        
+                        // randomize timer
+                        //pixel.timer = random(id.x * id.y + Time) * (TimeRangeMax - TimeRangeMin) + TimeRangeMin;
+                    }  
+                }
+            }
+           
+        }
+        else
+        {
+            // Decrement the timer
+            pixel.timer -= 0.1; 
+
+            if (pixel.timer <= 0.0)
+            {
+                if (Average)
+                {     
+                    // add all of the colors
+                    for(int i = 0; i < 8; i++)
+                    {
+                        PixelData neighbor = PixelBuffer[pixel.neighbors[i]]; 
+                        r += neighbor.r;
+                        g += neighbor.g; 
+                        b += neighbor.b;
+                    }
+
+                    // average all of the colors
+                    pixel.r = r /= 9; 
+                    pixel.g = g /= 9; 
+                    pixel.b = b /= 9; 
+
+                    // reset timer
+                    pixel.timer = random(id.x * id.y + Time) * (TimeRangeMax - TimeRangeMin) + TimeRangeMin;
+                }
+                else
+                {
+                    // select a random neighbor
+                    /*
+                    // Single neighbor
+                    uint randomIndex = (uint)(random((id.xy), frac(Time)) * 8);
+                    uint randomNeighborIndex = pixel.neighbors[randomIndex]; //uint randomNeighborIndex = pixel.neighbors[randomIndex % 8];
+                    PixelData neighbor = PixelBuffer[randomNeighborIndex]; 
+                    */
+
+                    // Multiple neighbors
+                    // Red
+                    uint randomIndex = (uint)(random((id.xy), frac(Time + 0.238923)) * 8);
+                    uint randomNeighborIndex = pixel.neighbors[randomIndex]; //uint randomNeighborIndex = pixel.neighbors[randomIndex % 8];
+                    PixelData neighborRed = PixelBuffer[randomNeighborIndex]; 
+
+                    // Green
+                    randomIndex = (uint)(random((id.xy), frac(Time + 0.1242)) * 8);
+                    randomNeighborIndex = pixel.neighbors[randomIndex]; //uint randomNeighborIndex = pixel.neighbors[randomIndex % 8];
+                    PixelData neighborGreen = PixelBuffer[randomNeighborIndex]; 
+
+                    // Blue
+                    randomIndex = (uint)(random((id.xy), frac(Time + 0.34234)) * 8);
+                    randomNeighborIndex = pixel.neighbors[randomIndex]; //uint randomNeighborIndex = pixel.neighbors[randomIndex % 8];
+                    PixelData neighborBlue = PixelBuffer[randomNeighborIndex]; 
+
+                    // Time 
+                    /*
+                    randomIndex = (uint)(random((id.xy), frac(Time + 2.12321)) * 8);
+                    randomNeighborIndex = pixel.neighbors[randomIndex]; //uint randomNeighborIndex = pixel.neighbors[randomIndex % 8];
+                    PixelData neighborTime = PixelBuffer[randomNeighborIndex]; 
+                    */
+                
+                    // assign color
+                    /*
+                    pixel.r = r = neighbor.r; 
+                    pixel.g = g = neighbor.g; 
+                    pixel.b = b = neighbor.b; 
+                    */
+                    pixel.r = r = neighborRed.r; 
+                    pixel.g = g = neighborGreen.g; 
+                    pixel.b = b = neighborBlue.b; 
+
+                    //pixel.timer = (pixel.timer < neighborTime.timer) ? pixel.timer : neighborTime.timer; 
+
+
+                    // reset timer
+                    pixel.timer = random(id.x * id.y + Time) * (TimeRangeMax - TimeRangeMin) + TimeRangeMin;
+                }
+                
+            }
+        }
+
+    
+
+    PixelBuffer[index] = pixel; 
+
+     // Apply resulting color
+     Result[id.xy] = float4(r,g,b,1); 
+
+    
+}

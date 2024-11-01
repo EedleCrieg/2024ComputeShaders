@@ -1,7 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.PlayerLoop;
 
 public class NewBehaviourScript : MonoBehaviour
 {
@@ -16,6 +18,8 @@ public class NewBehaviourScript : MonoBehaviour
     uint threadGroupSizeX; 
     int groupSizeX; 
     public Color clearColor; 
+
+    public float speed; 
 
     Transform [] cells; 
     ComputeBuffer resultBuffer; 
@@ -37,12 +41,23 @@ public class NewBehaviourScript : MonoBehaviour
         {
             cells[i] = Instantiate(prefab, transform).transform; 
         }
-
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
+    void Update (){
+        computeShader.SetFloat("time", Time.time); 
+        computeShader.SetFloat("speed", speed); 
+        computeShader.Dispatch(kernelHandle, groupSizeX, 1, 1);
+
+        resultBuffer.GetData(output); 
+
+        for (int i = 0; i < cells.Length; i++)
+        {
+            cells[i].localPosition = output[i]; 
+        }
     }
+
+    private void OnDestroy(){
+        resultBuffer.Dispose(); 
+    }
+
 }
