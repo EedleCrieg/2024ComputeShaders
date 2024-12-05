@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.44657898, g: 0.4964133, b: 0.5748178, a: 1}
+  m_IndirectSpecularColor: {r: 0.44657844, g: 0.49641222, b: 0.57481676, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -322,17 +322,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 827d5862923105846892d7a67473825c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  blitWithAlphaShader: {fileID: 0}
   kernelName: CSMain
   kernelHandle: 0
+  penColor: {r: 1, g: 1, b: 1, a: 0}
+  penEdgeColor: {r: 1, g: 1, b: 1, a: 0}
+  penRadius: 30
+  randomNeighborDistance: {x: 0, y: 10}
+  randomNeighbors: 0
   average: 0
-  interpolate: 0
+  weighted: 0
+  seperateRGB: 0
+  interpolate: 1
   pingPong: 0
-  selectColor: 1
-  timeRange: {x: 1, y: 5}
+  selectColor: 0
+  randomCursorColor: 1
+  timeRange: {x: 0.1, y: 1}
   computeShader: {fileID: 7200000, guid: ebe086aea337dd54f9f80653e292aaaf, type: 3}
   renderTexture: {fileID: 8400000, guid: 300756c8068011e4cbb157adf6c15b00, type: 2}
-  color1: {r: 0.015249729, g: 0, b: 1, a: 0}
-  color2: {r: 0, g: 0, b: 0, a: 0}
+  mousePosition: {x: 0, y: 0}
+  color1: {r: 0, g: 0, b: 0, a: 0}
+  color2: {r: 1, g: 0, b: 0, a: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

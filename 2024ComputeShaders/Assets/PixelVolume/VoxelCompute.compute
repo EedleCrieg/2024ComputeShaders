@@ -1,0 +1,66 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct VoxelData{
+    //uint neighbors[6]; 
+    float3 position; 
+    float r; 
+    float g; 
+    float b; 
+    float timer; 
+};
+
+//RWTexture2D<float4> Result;
+RWStructuredBuffer<VoxelData> VoxelBuffer; 
+
+float3 VoxelResolution; 
+float2 TimerMinMax; 
+float Time; 
+float DeltaTime;
+int totalCount; 
+
+
+float random(float value, float seed = 0.546)
+{
+    return frac(sin(value + seed) * 4782.439);  
+}
+
+// Lerp function definition
+float Lerp(float a, float b, float t)
+{
+    return a + (b - a) * t; 
+}
+
+[numthreads(128 ,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    uint xRez = VoxelResolution.x; 
+    uint yRez = VoxelResolution.y; 
+    uint zRez = VoxelResolution.z;
+
+    uint totalCount = xRez * yRez * zRez; 
+
+    // Calculate the index of the current voxel in the 1D array
+    uint index = id.x + id.y * xRez + id.z * xRez * yRez;
+    VoxelData voxel = VoxelBuffer[index];
+
+    // Decrease the timer
+    voxel.timer -= DeltaTime;
+
+    if (voxel.timer <= 0)
+    {
+        // Pick a random neighbor index between 0 and 5
+        uint neighborIndexPos = (uint)(random(index + Time) * totalCount);  // Randomly pick 0 to count
+        VoxelData neighbor = VoxelBuffer[neighborIndexPos]; 
+        voxel.r = neighbor.r; 
+        voxel.g = neighbor.g; 
+        voxel.b = neighbor.b; 
+        //uint neighborIndex = voxel.neighbors[neighborIndexPos]; // Get the actual neighbor index
+
+        // Reset the timer
+        voxel.timer = random(id.x * id.y * id.z + Time) * (TimerMinMax.y - TimerMinMax.x) + TimerMinMax.x;;
+    }
+
+    // Write the updated voxel data back to the buffer
+    VoxelBuffer[index] = voxel;
+}

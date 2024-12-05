@@ -18,14 +18,25 @@ struct PixelData{
 
 RWStructuredBuffer<PixelData> PixelBuffer;
 RWTexture2D<float4> Result;  
+
 float Time; 
 float TimeRangeMin;
 float TimeRangeMax;  
 bool Average; 
+bool Weighted; 
 bool Interpolate; 
 bool PingPong; 
+bool SeperateRGB; 
+bool Pressed; 
+bool RandomCursorColor; 
 int resolutionX; 
 int resolutionY; 
+float4 penColor; 
+float4 penEdgeColor; 
+int penRadius; 
+
+float2 mousePosition; 
+
 
 // return a random value between 0 and 1
 float random(float value, float seed = 0.546)
@@ -49,45 +60,94 @@ float Lerp(float a, float b, float t)
 }
 
 
+// plots a circle
+void plot1 (int x, int y, int2 centre){
+    Result[uint2(centre.x + x , centre.y + y)] = float4(1, 1, 1, 1); 
+}
+
+void plot8(int x, int y, int2 centre){
+    plot1(x, y, centre);    plot1(y,x,centre); 
+    plot1(x, -y, centre);   plot1(y, -x, centre); 
+    plot1(-x,-y, centre);   plot1(-y, -x, centre); 
+    plot1(-x, y, centre);   plot1(-y,x, centre); 
+}
+
+
 [numthreads(8, 8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID, uint3 dispatchSize : SV_DispatchThreadID)
 {
     
-    //uint index = id.x * dispatchSize.x + id.y * dispatchSize.y; 
-    //uint index = id.x + id.y; 
-    //uint index = id.xy * dispatchSize.x; 
-    //uint index = id.x * dispatchSize.x; 
-
-    //uint index = id.x + id.y; // diagonal 
-    //uint index = id.x * dispatchSize.x ; // vertical  
-    //uint index = id.x * dispatchSize.y; // noise with a diagonal 
-    //uint index = id.x * dispatchSize.x + dispatchSize.y; // vertical ish with large bar on right
-    //uint index = id.x * dispatchSize.y + dispatchSize.y; // noise with diagonal
-    //uint index = id.x + id.y * dispatchSize.x; // noise with diagonal
-    //uint index = id.x + id.y * dispatchSize.y; // horizontal with wave
-    //uint index = id.x * dispatchSize.x + id.y * dispatchSize.y; // diagonal with circle
-    //uint index = id.x * dispatchSize.y + id.y * dispatchSize.y; // diagonal with ellipse
-    //uint index = id.x * dispatchSize.x + id.y * dispatchSize.x; // diagonal with vertical ellipse
-
-    uint index = id.x + id.y * resolutionX ; // Normal
-    //uint index = id.x + id.y * resolutionY ; // Horizontal
-    // uint index = id.x ; // Vertical
-    //uint index = id.y;  // horizontal
-    //uint index = id.y * resolutionX; // horizontal
-    //uint index = id.y * resolutionY; // horizontal
-    //uint index = id.x * resolutionX ; // vertical with color block
-    //uint index = id.x * resolutionY ; // vertical
-    //uint index = id.x * resolutionX + id.y * resolutionX ; // diagonal with color block
-    //uint index = id.x * resolutionY + id.y * resolutionX ; // diagonal with color block
-    //uint index = id.x * resolutionX + id.y; // normal with color block
+    uint index = id.x + id.y * resolutionX ; 
     PixelData pixel = PixelBuffer[index]; 
 
     float r = pixel.r; 
     float g = pixel.g; 
     float b = pixel.b; 
 
+    // weight for averaging the proximity between neighbors and their values
+    float weight = 1; 
 
-    if(Interpolate)
+    // cursor position
+    float2 xy = float2(mousePosition.x,mousePosition.y); 
+    bool cursor = ((length(id.xy - xy)  < penRadius))?  true : false; 
+
+    if (cursor)
+    {
+        if (Pressed)
+        { 
+            // Random Cursor
+            if(RandomCursorColor)
+            {
+                float randomFloat = random(index + frac(Time) * random(Time)); 
+                pixel.r = r = (randomFloat >= 0.5)? penEdgeColor.r : penColor.r; 
+                pixel.g = g = (randomFloat >= 0.5)? penEdgeColor.g : penColor.g; 
+                pixel.b = b = (randomFloat >= 0.5)? penEdgeColor.b : penColor.b;
+            }
+            else
+            {
+                // Fill
+                pixel.r = r = penColor.r; 
+                pixel.g = g = penColor.g; 
+                pixel.b = b = penColor.b; 
+
+                // Border
+                if (length(id.xy - xy ) > penRadius - 1 && length(id.xy - xy ) < penRadius + 1)
+                {
+                    pixel.r = r = penEdgeColor.r; 
+                    pixel.g = g = penEdgeColor.g; 
+                    pixel.b = b = penEdgeColor.b; 
+                }
+            }
+        }
+        else
+        {
+            if(RandomCursorColor)
+            {
+                float randomFloat = random(index + frac(Time) * random(Time));
+                r = (randomFloat >= 0.5)? penEdgeColor.r : penColor.r; 
+                g = (randomFloat >= 0.5)? penEdgeColor.g : penColor.g;
+                b = (randomFloat >= 0.5)? penEdgeColor.b : penColor.b;
+            }
+            else
+            {
+                // Fill
+                r = penColor.r; 
+                g = penColor.g;
+                b = penColor.b;
+                
+                // Border
+                if (length(id.xy - xy ) > penRadius - 1 && length(id.xy - xy ) < penRadius + 1)
+                {
+                    r = penEdgeColor.r; 
+                    g = penEdgeColor.g;
+                    b = penEdgeColor.b; 
+                }
+            }    
+        } 
+    }
+    if(!cursor)
+    {
+        if(Interpolate)
         {
             if(PingPong)
             {
@@ -307,42 +367,62 @@ void CSMain (uint3 id : SV_DispatchThreadID, uint3 dispatchSize : SV_DispatchThr
             }
            
         }
-        else
+        if(!Interpolate)
         {
-            // Decrement the timer
-            pixel.timer -= 0.1; 
-
             if (pixel.timer <= 0.0)
             {
-                if (Average)
-                {     
-                    // add all of the colors
+                if (Weighted)
+                {
+                    r = pixel.r * 0.5; 
+                    g = pixel.g * 0.5; 
+                    b = pixel.b * 0.5; 
+
                     for(int i = 0; i < 8; i++)
                     {
                         PixelData neighbor = PixelBuffer[pixel.neighbors[i]]; 
+                            // Corners
+                            if(i == 0 || i == 2 || i == 5 || i == 7) weight = 0.0416777; 
+                            // Adjacencies
+                            if(i == 1 || i == 3 || i == 4 || i == 6) weight = 0.08333333; 
+
+                            r += neighbor.r * weight; 
+                            g += neighbor.g * weight; 
+                            b += neighbor.b * weight; 
+                    }
+
+                    if (random(Time) >= 0.5) 
+                    {
+                        pixel.r = r; 
+                        pixel.g = g; 
+                        pixel.b = b;
+                    }
+                    else{
+                        r = pixel.r; 
+                        g = pixel.g; 
+                        b = pixel.b; 
+                    }
+                    
+                }
+                if (Average)
+                {   
+                    // add all of the colors
+                    // Average
+                    for(int i = 0; i < 8; i++)
+                    {
+                        PixelData neighbor = PixelBuffer[pixel.neighbors[i]]; 
+
                         r += neighbor.r;
                         g += neighbor.g; 
-                        b += neighbor.b;
+                        b += neighbor.b; 
                     }
 
                     // average all of the colors
                     pixel.r = r /= 9; 
                     pixel.g = g /= 9; 
                     pixel.b = b /= 9; 
-
-                    // reset timer
-                    pixel.timer = random(id.x * id.y + Time) * (TimeRangeMax - TimeRangeMin) + TimeRangeMin;
                 }
-                else
+                if (SeperateRGB) // A random value for each RGB values
                 {
-                    // select a random neighbor
-                    /*
-                    // Single neighbor
-                    uint randomIndex = (uint)(random((id.xy), frac(Time)) * 8);
-                    uint randomNeighborIndex = pixel.neighbors[randomIndex]; //uint randomNeighborIndex = pixel.neighbors[randomIndex % 8];
-                    PixelData neighbor = PixelBuffer[randomNeighborIndex]; 
-                    */
-
                     // Multiple neighbors
                     // Red
                     uint randomIndex = (uint)(random((id.xy), frac(Time + 0.238923)) * 8);
@@ -367,27 +447,35 @@ void CSMain (uint3 id : SV_DispatchThreadID, uint3 dispatchSize : SV_DispatchThr
                     */
                 
                     // assign color
-                    /*
+                    pixel.r = r = neighborRed.r; 
+                    pixel.g = g = neighborGreen.g; 
+                    pixel.b = b = neighborBlue.b;           
+                }
+                if(!Weighted && !Average && !SeperateRGB)
+                {
+                    // Single neighbor
+                    uint randomIndex = (uint)(random((id.xy), frac(Time)) * 8);
+                    uint randomNeighborIndex = pixel.neighbors[randomIndex]; //uint randomNeighborIndex = pixel.neighbors[randomIndex % 8];
+                    PixelData neighbor = PixelBuffer[randomNeighborIndex]; 
+
+                    // select a random neighbor
                     pixel.r = r = neighbor.r; 
                     pixel.g = g = neighbor.g; 
                     pixel.b = b = neighbor.b; 
-                    */
-                    pixel.r = r = neighborRed.r; 
-                    pixel.g = g = neighborGreen.g; 
-                    pixel.b = b = neighborBlue.b; 
-
-                    //pixel.timer = (pixel.timer < neighborTime.timer) ? pixel.timer : neighborTime.timer; 
-
-
-                    // reset timer
-                    pixel.timer = random(id.x * id.y + Time) * (TimeRangeMax - TimeRangeMin) + TimeRangeMin;
                 }
-                
+
+                // reset timer
+                pixel.timer = random(id.x * id.y + Time) * (TimeRangeMax - TimeRangeMin) + TimeRangeMin;
             }
-        }
-
-    
-
+            else
+            {
+                // Decrement the timer
+                pixel.timer -= 0.1; 
+            }
+                
+        }   
+    }
+     
     PixelBuffer[index] = pixel; 
 
      // Apply resulting color

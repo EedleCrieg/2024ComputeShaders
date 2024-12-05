@@ -1,0 +1,154 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct Particle{
+    float3 oritinalPosition;
+    float3 position;
+    float3 velocity; 
+    float3 color; 
+    float life; 
+};
+
+RWStructuredBuffer<Particle> particleBuffer; 
+
+// decayiables set from the CPU
+float Time; 
+float3 Resolution; 
+float deltaTime; 
+float2 mousePosition; 
+float lifeSpanMin;
+float lifeSpanMax;  
+float Amplitude; 
+float Frequency; 
+float Speed; 
+float Ratio; 
+float RadiusShift; 
+
+uint rng_state; 
+
+uint rand_xorshift()
+{
+    // XorShift algorithm from George Marsaglia's paper
+    rng_state ^= (rng_state << 13);
+	rng_state ^= (rng_state >> 17);
+	rng_state ^= (rng_state << 5);
+	return rng_state;
+}
+
+float random(float value, float seed = 0.546)
+{
+    return frac(sin(value + seed) * 4782.439);  
+}
+
+void respawn(uint id)
+{   
+    float rezX = Resolution.x; 
+    float rezY = Resolution.y; 
+    float rezZ = Resolution.z; 
+
+    float totalCount = rezX * rezY * rezZ; 
+    /*
+    rng_state = id;
+	float tmp = (1.0 / 4294967296.0);
+	float f0 = float(rand_xorshift()) * tmp - 0.5;
+	float f1 = float(rand_xorshift()) * tmp - 0.5;
+	float f2 = float(rand_xorshift()) * tmp - 0.5;
+	float3 normalF3 = normalize(float3(f0, f1, f2)) * 0.8f;
+	normalF3 *= float(rand_xorshift()) * tmp;
+	particleBuffer[id].position = float3(normalF3.x + mousePosition.x, normalF3.y + mousePosition.y, normalF3.z + 3.0);
+    */
+	// reset the life of this particle
+	particleBuffer[id].life = random(id.x + Time) * (lifeSpanMax - lifeSpanMin) + lifeSpanMin;
+    // reset color
+    // select a random neighbor
+    uint randomIndex = (uint)(random(id, frac(Time)) * 6); // there are six neighbors
+    uint neighborIndex;  
+
+    // 0 : Bottom // 1 : Back // 2 : Right // 3 : Front // 4 : Left // 5 : Top
+
+    switch(randomIndex){
+        case 0:
+            neighborIndex = (id - (rezX * rezY) >= 0)? id - (rezX * rezY) : id; // Bottom
+            break;
+        case 1:
+            neighborIndex = (id + rezX < totalCount)? id + rezX : id; // Back
+            break;
+        case 2:
+            neighborIndex = ((id + 1) < totalCount)? id + 1 : id; // Right
+            break;
+        case 3:
+            neighborIndex = (id - rezX > 0)? id - rezX : id; // Front
+            break;
+        case 4:
+            neighborIndex = ((id - 1) >= 0)? id - 1 : id; // Left
+            break; 
+        case 5:
+            neighborIndex = (id + (rezX * rezY) > totalCount)? id - (rezX * rezY) : id; // Top
+            break;
+    }
+
+    particleBuffer[id].color.x = particleBuffer[neighborIndex].color.x; //random(id.x + Time); 
+    particleBuffer[id].color.y = particleBuffer[neighborIndex].color.y;//random(id.x + Time, 0.983); 
+    particleBuffer[id].color.z = particleBuffer[neighborIndex].color.z;//random(id.x + Time, 0.132); 
+    // reset velocity
+	//particleBuffer[id].velocity = float3(0,0,0); 
+}
+
+
+
+
+
+
+[numthreads(256,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float rezX = Resolution.x; 
+    float rezY = Resolution.y; 
+    float rezZ = Resolution.z;
+
+    // center of ripple
+    float3 center = float3(rezX , rezY  + cos(Time) * RadiusShift, rezZ  + sin(Time) * RadiusShift) * 0.5f;   //float3(0,0,0);//  // This is good for when we are not in 4D //
+
+    Particle particle = particleBuffer[id.x]; 
+
+    particle.life -= deltaTime; 
+
+    
+    float distance = length(particle.oritinalPosition - center) + 0.01;
+
+    float decay = 1 / (1 + Ratio * distance); 
+
+    
+    // for 3D
+    float waveS = Amplitude * decay * (sin(Frequency * distance - Speed * Time) + cos(1.04667 * Frequency * distance - Speed * Time * 1.04667));
+    float waveC = Amplitude * cos(Frequency * distance + Speed * Time) * decay; 
+    
+
+    // for 4D
+    /*
+    float3 x = float3(1,-1,-1); 
+    float3 y = float3(-1,1,-1); 
+    float3 z = float3(-1,-1,1); 
+    float3 w = float3(1,1,1);    
+    */
+    //float3 delta = float3( waveC,  waveC, waveS - waveC); 
+    float3 delta = float3(waveS, waveS, waveC); 
+    //float3 delta = float3(waveS, waveS, waveS); 
+    //float n1 = random(id.x, Time) > 0.5 ? -1 : 1; 
+    //float n2 = random(id.x, Time + 1.2938) > 0.5 ? -1 : 1; 
+    //float n3 = random(id.x, Time + 2.9239) > 0.5 ? -1 : 1; 
+    //float n4 = random(id.x, Time + 3.4983) > 0.5 ? -1 : 1; 
+    //float3 delta = n1 * x * waveS + n2 * y * waveS + n3 * z * waveS + n4 * w * waveS; 
+    //float dir = normalize(delta); 
+
+    float3 distVect = particle.oritinalPosition - center; 
+
+    //particle.velocity = delta; 
+    particle.position = particle.oritinalPosition + distVect * waveS; // particle.velocity ;//* deltaTime; //particle.oritinalPosition + delta ;//
+     
+    
+
+    particleBuffer[id.x] = particle; 
+
+    if (particle.life < 0) respawn(id.x); 
+}
